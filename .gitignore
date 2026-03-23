@@ -1,0 +1,74 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Virtual Environments
+# =========================
+.venv/
+venv/
+env/
+
+# =========================
+# Environment Variables
+# =========================
+.env
+
+# =========================
+# Jupyter / Notebooks
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# VS Code / IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Streamlit
+# =========================
+.streamlit/
+
+# =========================
+# Data Files (IMPORTANT)
+# =========================
+data/*.csv
+data/*.xlsx
+data/*.json
+
+# Allow small sample data if needed
+!data/sample_*.csv
+
+# =========================
+# Output / Generated Files
+# =========================
+outputs/
+*.png
+*.jpg
+
+# =========================
+# Misc
+# =========================
+*.sqlite
+*.db
