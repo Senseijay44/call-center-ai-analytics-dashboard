@@ -10,6 +10,7 @@ from src.analytics import (
 )
 from src.config import RoutingConfig
 from src.data_loader import load_best_dataset
+from src.decision_support import action_by_intent, decision_funnel_metrics, rule_hit_table
 from src.insights import generate_insights
 from src.policy_optimizer import estimate_policy_cost, threshold_sweep
 from src.preprocessing import clean_dataframe, get_column_map
@@ -17,13 +18,14 @@ from src.routing_engine import apply_routing, routing_distribution, trigger_summ
 from src.simulation import simulate_queue
 from src.summarizer import generate_handoff_examples
 
-st.set_page_config(page_title="Call Center Decision Engine", page_icon="📞", layout="wide")
+st.set_page_config(page_title="Call Center Decision Intelligence", page_icon="📞", layout="wide")
 
-st.title("📞 AI-Assisted Call Center Decision Engine Prototype")
+st.title("📞 Call Center Decision Intelligence Dashboard")
 st.markdown(
     """
-This dashboard now combines descriptive analytics with a rules-based routing engine to simulate
-how an AI-first support operation decides whether to keep, review, or escalate customer interactions.
+A portfolio-ready analytics app for AI-assisted support operations.  
+It combines descriptive analytics, deterministic routing policy, explainable escalation rules,
+and measurable cost/risk tradeoff analysis.
 """
 )
 
@@ -31,8 +33,7 @@ how an AI-first support operation decides whether to keep, review, or escalate c
 @st.cache_data
 def load_data():
     df = load_best_dataset()
-    df = clean_dataframe(df)
-    return df
+    return clean_dataframe(df)
 
 
 try:
@@ -45,8 +46,7 @@ except Exception as e:
 st.subheader("Dataset Overview")
 st.write(f"Source file: `{df['source_file'].iloc[0]}`")
 st.write(f"Rows: {len(df):,} | Columns: {len(df.columns)}")
-
-with st.expander("View detected columns"):
+with st.expander("Detected schema map"):
     st.json(col_map)
 
 st.sidebar.header("Filters")
@@ -64,138 +64,124 @@ if col_map["sentiment"]:
     if selected_sentiments:
         working_df = working_df[working_df[col_map["sentiment"]].isin(selected_sentiments)]
 
-st.sidebar.header("Routing Thresholds")
+st.sidebar.header("Policy Controls")
 low_conf = st.sidebar.slider("Low confidence threshold", min_value=0.10, max_value=0.95, value=0.45, step=0.05)
-frustration_threshold = st.sidebar.slider("Frustration keyword threshold", min_value=1, max_value=4, value=2, step=1)
 escalate_threshold = st.sidebar.slider("Escalate risk threshold", min_value=0.30, max_value=0.90, value=0.55, step=0.05)
 priority_threshold = st.sidebar.slider("Priority risk threshold", min_value=0.60, max_value=0.98, value=0.82, step=0.02)
 
 routing_cfg = RoutingConfig(
     low_confidence_threshold=low_conf,
-    frustration_score_threshold=frustration_threshold,
     escalate_risk_threshold=escalate_threshold,
     priority_risk_threshold=priority_threshold,
 )
 
 routed_df = apply_routing(working_df, col_map, config=routing_cfg)
-
 kpis = basic_kpis(working_df, col_map)
-c1, c2, c3 = st.columns(3)
-c1.metric("Total Calls", f"{kpis['total_calls']:,}")
-c2.metric("Complaint Rate", f"{kpis['complaint_rate']:.1%}")
-c3.metric("Negative Sentiment Rate", f"{kpis['negative_rate']:.1%}")
+costs = estimate_policy_cost(routed_df, routing_cfg)
+metrics = decision_funnel_metrics(routed_df)
 
-col1, col2 = st.columns(2)
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Total Calls", f"{kpis['total_calls']:,}")
+k2.metric("Negative Rate", f"{kpis['negative_rate']:.1%}")
+k3.metric("Automation Rate", f"{metrics['automation_rate']:.1%}")
+k4.metric("Est. Total Cost", f"${costs['total_estimated_cost']:,.0f}")
 
-with col1:
+st.header("1) Demand and Service Mix")
+c1, c2 = st.columns(2)
+with c1:
     st.subheader("Call Type Distribution")
     if col_map["call_type"]:
         call_type_df = value_counts_table(working_df, col_map["call_type"], top_n=15)
-        fig = px.bar(call_type_df, x="value", y="count")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(call_type_df, x="value", y="count"), use_container_width=True)
     else:
         st.info("No call type column detected.")
 
-with col2:
+with c2:
     st.subheader("Sentiment Distribution")
     if col_map["sentiment"]:
         sentiment_df = value_counts_table(working_df, col_map["sentiment"], top_n=15)
-        fig = px.pie(sentiment_df, names="value", values="count")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.pie(sentiment_df, names="value", values="count"), use_container_width=True)
     else:
         st.info("No sentiment column detected.")
 
-col3, col4 = st.columns(2)
-
-with col3:
-    st.subheader("Routing Decision Distribution")
+st.header("2) Decision Policy Performance")
+c3, c4 = st.columns(2)
+with c3:
+    st.subheader("Routing Decisions")
     route_df = routing_distribution(routed_df)
     if not route_df.empty:
-        fig = px.bar(route_df, x="routing_action", y="count", color="routing_action")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No routing decisions available.")
+        st.plotly_chart(px.bar(route_df, x="routing_action", y="count", color="routing_action"), use_container_width=True)
 
-with col4:
-    st.subheader("Escalation Trigger Signals")
+with c4:
+    st.subheader("Top Escalation Triggers")
     trigger_df = trigger_summary(routed_df)
     if not trigger_df.empty:
-        fig = px.bar(trigger_df, x="trigger", y="count")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No routing trigger signals available.")
+        st.plotly_chart(px.bar(trigger_df, x="trigger", y="count"), use_container_width=True)
 
+c5, c6 = st.columns(2)
+with c5:
+    st.subheader("Rule Hit Frequency")
+    rules_df = rule_hit_table(routed_df)
+    if not rules_df.empty:
+        st.plotly_chart(px.bar(rules_df, x="rule", y="count"), use_container_width=True)
 
-st.subheader("Weighted Risk Score Distribution")
-if "signal_risk_score" in routed_df.columns:
-    fig = px.histogram(routed_df, x="signal_risk_score", nbins=20)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No risk score available.")
+with c6:
+    st.subheader("Risk Score Distribution")
+    if "signal_risk_score" in routed_df.columns:
+        st.plotly_chart(px.histogram(routed_df, x="signal_risk_score", nbins=20), use_container_width=True)
 
-st.header("🤖 AI Optimization Insights")
+st.subheader("Action by Intent")
+action_intent_df = action_by_intent(routed_df, col_map.get("call_type"))
+if not action_intent_df.empty:
+    st.plotly_chart(
+        px.bar(action_intent_df, x="call_type", y="count", color="routing_action", barmode="stack"),
+        use_container_width=True,
+    )
+
+st.header("3) Cost, Risk, and Policy Tuning")
+p1, p2, p3, p4 = st.columns(4)
+p1.metric("Base Ops Cost", f"${costs['base_operation_cost']:,.0f}")
+p2.metric("Risk Penalty", f"${costs['risk_penalty_cost']:,.0f}")
+p3.metric("High-Risk Misses", f"{costs['high_risk_misses']}")
+p4.metric("Priority Delays", f"{costs['priority_delays']}")
+
+sweep_df = threshold_sweep(working_df, col_map, routing_cfg)
+st.caption("Threshold sweep exposes the cost/risk tradeoff to support policy selection.")
+st.dataframe(sweep_df, use_container_width=True)
+
+st.header("4) Operational Guidance")
 auto_df = automation_candidates(working_df, col_map)
 esc_df = escalation_candidates(working_df, col_map)
 left, right = st.columns(2)
-
 with left:
     st.subheader("Automation Candidates")
     if not auto_df.empty:
         display_df = auto_df.copy()
         display_df["negative_rate"] = display_df["negative_rate"].map(lambda x: f"{x:.1%}")
         st.dataframe(display_df, use_container_width=True)
-    else:
-        st.info("Insufficient columns to identify automation candidates.")
 
 with right:
     st.subheader("Escalation Risk Areas")
     if not esc_df.empty:
         st.dataframe(esc_df, use_container_width=True)
-    else:
-        st.info("Insufficient columns to identify escalation risks.")
 
-st.header("⚖️ Policy Tuning Lab (Cost vs. Risk)")
-costs = estimate_policy_cost(routed_df, routing_cfg)
-pc1, pc2, pc3, pc4 = st.columns(4)
-pc1.metric("Estimated Total Cost", f"${costs['total_estimated_cost']:,.0f}")
-pc2.metric("Base Ops Cost", f"${costs['base_operation_cost']:,.0f}")
-pc3.metric("High-Risk Misses", f"{costs['high_risk_misses']}")
-pc4.metric("Priority Delays", f"{costs['priority_delays']}")
+st.subheader("Handoff Summary Examples")
+st.dataframe(generate_handoff_examples(routed_df, col_map, limit=5), use_container_width=True)
 
-sweep_df = threshold_sweep(working_df, col_map, routing_cfg)
-st.caption("Threshold sweep estimates the business tradeoff between AI efficiency and escalation risk.")
-st.dataframe(sweep_df, use_container_width=True)
-
-st.header("🧾 Escalation Handoff Summaries")
-handoff_examples = generate_handoff_examples(routed_df, col_map, limit=5)
-if handoff_examples.empty:
-    st.info("No escalated records currently available for handoff previews.")
-else:
-    st.dataframe(handoff_examples, use_container_width=True)
-
-st.header("⏱️ Simulated Live Queue")
+st.header("5) Queue Simulation")
 max_records = st.slider("Records to simulate", min_value=10, max_value=min(200, len(routed_df)), value=min(50, len(routed_df)), step=10)
 queue_df = simulate_queue(routed_df, timestamp_col=col_map.get("timestamp"), max_records=max_records)
 st.dataframe(queue_df, use_container_width=True)
 
-queue_action_summary = queue_df["routing_action"].value_counts().reset_index()
-queue_action_summary.columns = ["routing_action", "count"]
-if not queue_action_summary.empty:
-    fig = px.line(queue_action_summary, x="routing_action", y="count", markers=True)
-    st.plotly_chart(fig, use_container_width=True)
-
-st.header("🧠 Strategic Recommendations")
-insights = generate_insights(kpis, auto_df, esc_df, policy_costs=costs)
+st.subheader("Recommendation Narrative")
+insights = generate_insights(kpis, auto_df, esc_df, policy_costs=costs, decision_metrics=metrics)
 for insight in insights:
     st.markdown(f"- {insight}")
 
-st.header("📄 Sample Routed Records")
+st.subheader("Sample Routed Records")
 st.dataframe(routed_df.head(25), use_container_width=True)
 
 st.subheader("Negative Sentiment by Call Type")
 neg_call_df = negative_by_call_type(working_df, col_map)
 if not neg_call_df.empty:
-    fig = px.bar(neg_call_df, x="call_type", y="negative_calls")
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Insufficient columns to calculate negative sentiment by call type.")
+    st.plotly_chart(px.bar(neg_call_df, x="call_type", y="negative_calls"), use_container_width=True)

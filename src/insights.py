@@ -6,6 +6,7 @@ def generate_insights(
     automation_df: pd.DataFrame,
     escalation_df: pd.DataFrame,
     policy_costs: dict | None = None,
+    decision_metrics: dict | None = None,
 ) -> list[str]:
     insights = []
 
@@ -13,6 +14,15 @@ def generate_insights(
         f"Total calls analyzed: {kpis['total_calls']:,}. Complaint rate: {kpis['complaint_rate']:.1%}. "
         f"Negative sentiment rate: {kpis['negative_rate']:.1%}."
     )
+
+    if decision_metrics:
+        insights.append(
+            "Routing funnel: "
+            f"AI_HANDLE={decision_metrics['automation_rate']:.1%}, "
+            f"HUMAN_REVIEW={decision_metrics['review_rate']:.1%}, "
+            f"HUMAN_ESCALATE={decision_metrics['escalation_rate']:.1%}, "
+            f"PRIORITY_ESCALATE={decision_metrics['priority_rate']:.1%}."
+        )
 
     if not automation_df.empty and "call_type" in automation_df.columns:
         top_auto = automation_df.iloc[0]
@@ -35,8 +45,7 @@ def generate_insights(
         )
 
     insights.append(
-        "This dataset can be used to identify which call categories are appropriate for AI handling, "
-        "which require human support, and where AI tone or workflow logic should be adjusted."
+        "Policy is deterministic and auditable: each routed record stores explicit rule hits, risk score, and target resolution window."
     )
 
     return insights
