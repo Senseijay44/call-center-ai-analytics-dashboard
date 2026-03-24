@@ -23,6 +23,9 @@ class RoutingSignals:
     frustration_hits: int
     escalation_hits: int
     low_confidence: bool
+    confidence_gap: float
+    risk_score: float
+    uncertain_case: bool
 
 
 class RoutingEngine:
@@ -34,6 +37,31 @@ class RoutingEngine:
         if pd.isna(value):
             return ""
         return str(value).strip().lower()
+
+    @staticmethod
+    def _safe_float(value: object, default: float = 0.0) -> float:
+        try:
+            if value is None or pd.isna(value):
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _compute_risk_score(self, signals: dict, confidence_gap: float) -> tuple[float, list[str]]:
+        contributions = {
+            "sentiment_negative": self.config.w_sentiment_negative if signals["sentiment_negative"] else 0.0,
+            "priority_intent": self.config.w_priority_intent if signals["priority_intent"] else 0.0,
+            "review_intent": self.config.w_review_intent if signals["review_intent"] else 0.0,
+            "frustration_hits": min(3, signals["frustration_hits"]) * self.config.w_frustration_hit,
+            "escalation_hits": min(3, signals["escalation_hits"]) * self.config.w_escalation_hit,
+            "low_confidence": self.config.w_low_confidence if signals["low_confidence"] else 0.0,
+            "confidence_gap": confidence_gap * self.config.w_confidence_gap,
+        }
+        risk_score = max(0.0, min(1.0, sum(contributions.values())))
+        top_reasons = [
+            name for name, _ in sorted(contributions.items(), key=lambda item: item[1], reverse=True) if _ > 0
+        ][:3]
+        return risk_score, top_reasons
 
     def detect_signals(
         self,
@@ -54,10 +82,20 @@ class RoutingEngine:
         frustration_hits = sum(1 for token in self.config.frustration_keywords if token in transcript)
         escalation_hits = sum(1 for token in self.config.escalation_keywords if token in transcript)
 
-        confidence = row.get(confidence_col) if confidence_col else None
-        low_confidence = False
-        if confidence is not None and not pd.isna(confidence):
-            low_confidence = float(confidence) < self.config.low_confidence_threshold
+        confidence = self._safe_float(row.get(confidence_col) if confidence_col else None, default=1.0)
+        low_confidence = confidence < self.config.low_confidence_threshold
+        confidence_gap = max(0.0, self.config.medium_confidence_threshold - confidence)
+
+        signal_dict = {
+            "sentiment_negative": sentiment_negative,
+            "priority_intent": priority_intent,
+            "review_intent": review_intent,
+            "frustration_hits": frustration_hits,
+            "escalation_hits": escalation_hits,
+            "low_confidence": low_confidence,
+        }
+        risk_score, _ = self._compute_risk_score(signal_dict, confidence_gap)
+        uncertain_case = self.config.uncertainty_low <= risk_score <= self.config.uncertainty_high
 
         return RoutingSignals(
             sentiment_negative=sentiment_negative,
@@ -66,21 +104,39 @@ class RoutingEngine:
             frustration_hits=frustration_hits,
             escalation_hits=escalation_hits,
             low_confidence=low_confidence,
+            confidence_gap=confidence_gap,
+            risk_score=risk_score,
+            uncertain_case=uncertain_case,
         )
 
     def route(self, signals: RoutingSignals) -> tuple[RoutingAction, str]:
-        if signals.priority_intent or signals.escalation_hits >= 2:
-            return RoutingAction.PRIORITY_ESCALATE, "High-risk intent or repeated explicit escalation language detected."
+        signal_dict = asdict(signals)
+        risk_score, top_reasons = self._compute_risk_score(signal_dict, signals.confidence_gap)
+        explain = ", ".join(top_reasons) if top_reasons else "low observed risk signals"
 
-        if signals.sentiment_negative and (
-            signals.frustration_hits >= self.config.frustration_score_threshold or signals.low_confidence
+        if (
+            signals.priority_intent
+            or signals.escalation_hits >= 2
+            or risk_score >= self.config.priority_risk_threshold
         ):
-            return RoutingAction.HUMAN_ESCALATE, "Negative sentiment combined with frustration or low model confidence."
+            return (
+                RoutingAction.PRIORITY_ESCALATE,
+                f"Risk score {risk_score:.2f} crossed priority threshold. Drivers: {explain}.",
+            )
 
-        if signals.review_intent or signals.low_confidence:
-            return RoutingAction.HUMAN_REVIEW, "Potentially complex issue or uncertain model confidence requires human validation."
+        if risk_score >= self.config.escalate_risk_threshold:
+            return (
+                RoutingAction.HUMAN_ESCALATE,
+                f"Risk score {risk_score:.2f} indicates elevated resolution risk. Drivers: {explain}.",
+            )
 
-        return RoutingAction.AI_HANDLE, "Low-risk interaction suitable for AI-first handling."
+        if signals.uncertain_case or signals.review_intent or signals.low_confidence:
+            return (
+                RoutingAction.HUMAN_REVIEW,
+                f"Risk score {risk_score:.2f} is in a gray zone or confidence is limited. Drivers: {explain}.",
+            )
+
+        return RoutingAction.AI_HANDLE, f"Risk score {risk_score:.2f} supports AI-first handling. Drivers: {explain}."
 
 
 def apply_routing(
@@ -128,6 +184,7 @@ def trigger_summary(routed_df: pd.DataFrame) -> pd.DataFrame:
         "signal_priority_intent",
         "signal_review_intent",
         "signal_low_confidence",
+        "signal_uncertain_case",
     ]
 
     existing = [col for col in trigger_cols if col in routed_df.columns]

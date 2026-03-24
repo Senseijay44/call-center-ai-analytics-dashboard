@@ -36,12 +36,15 @@ def generate_handoff_summary(row: pd.Series, col_map: dict) -> str:
     frustration_hits = int(row.get("signal_frustration_hits", 0) or 0)
     escalation_hits = int(row.get("signal_escalation_hits", 0) or 0)
     signal_line = ", ".join(signal_parts) if signal_parts else "No boolean routing triggers"
+    risk_score = float(row.get("signal_risk_score", 0.0) or 0.0)
+    uncertain_case = bool(row.get("signal_uncertain_case", False))
 
     return (
         f"Issue Summary: Customer contacted support about '{issue}' with {sentiment.lower()} sentiment. "
         f"Transcript excerpt: \"{transcript}\"\n"
         f"Transfer Reason: Routed to {action} because {reason}\n"
         f"Signals Detected: {signal_line}; frustration_hits={frustration_hits}, escalation_hits={escalation_hits}.\n"
+        f"Risk Context: weighted_risk_score={risk_score:.2f}; uncertain_case={uncertain_case}.\n"
         "AI Attempts: Intent classification, policy retrieval, and first-response generation were completed before transfer."
     )
 

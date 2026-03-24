@@ -5,7 +5,9 @@ A portfolio-ready Python project that evolves a traditional support analytics da
 ## What this project demonstrates
 
 - Descriptive analytics on support interaction data (call type, sentiment, risk patterns)
-- Rules-based interaction routing for operational decisions
+- Explainable weighted-risk routing for operational decisions
+- Gray-zone handling (`HUMAN_REVIEW`) for uncertain cases
+- Business cost tradeoff simulation for threshold tuning
 - AI-to-human handoff summary generation for escalations
 - Queue simulation mode that mimics live decisioning record-by-record
 - Streamlit UI controls for tuning routing thresholds and reviewing impact
@@ -20,12 +22,37 @@ app.py (Streamlit UI)
 ├── src/data_loader.py        # dataset selection + fallback synthetic demo data
 ├── src/preprocessing.py      # schema normalization + column detection
 ├── src/analytics.py          # KPI and descriptive analytics
-├── src/routing_engine.py     # rules engine + trigger extraction
+├── src/routing_engine.py     # weighted risk scoring + explainable routing logic
+├── src/policy_optimizer.py   # cost modeling + threshold sweep simulations
 ├── src/summarizer.py         # escalation handoff summary generation
 ├── src/simulation.py         # simulated live queue processing
 ├── src/insights.py           # strategic recommendation text
-└── src/config.py             # paths + routing thresholds/keywords
+└── src/config.py             # thresholds, risk weights, and business cost parameters
 ```
+
+---
+
+## Portfolio-impressive upgrade implemented
+
+### ✅ Cost-aware explainable risk policy (highest-leverage next step)
+
+This upgrade turns the prototype from a static rules dashboard into a **decision policy lab**:
+
+1. **Weighted risk scoring**
+   - Every interaction receives a `signal_risk_score` (0 to 1) based on interpretable factors: sentiment risk, intent severity, frustration/escalation keywords, and confidence quality.
+2. **Gray-zone handling**
+   - Interactions in an uncertainty band are routed to `HUMAN_REVIEW` rather than over-automating or over-escalating.
+3. **Business tradeoff modeling**
+   - The dashboard estimates operational cost + risk penalty (missed high-risk cases, delayed priorities).
+4. **Threshold sweep simulation**
+   - Analysts can compare escalation thresholds to identify the best total-cost policy for current data.
+5. **Explainability in handoff**
+   - Handoff summaries now include risk score and uncertainty context for downstream agents.
+
+Why this is the highest-leverage improvement:
+- It directly connects model/heuristic behavior to **business outcomes** (cost of labor vs. cost of failure).
+- It demonstrates **analyst + systems thinking**: policy, governance, and operations—not just visualization.
+- It is realistically extensible to production as a versioned decision policy service.
 
 ---
 
@@ -38,12 +65,13 @@ Each interaction is classified into one of:
 - `HUMAN_REVIEW`
 - `PRIORITY_ESCALATE`
 
-Routing uses combinations of:
+Routing now uses weighted risk + policy thresholds built from:
 
 - sentiment label
 - call type / intent
 - frustration & escalation language in transcript text
-- optional confidence score (if available)
+- confidence score (if available)
+- configurable business thresholds for escalation and priority fast-track
 
 ---
 
@@ -53,7 +81,10 @@ Routing uses combinations of:
 - Call type + sentiment distribution charts
 - Routing decision distribution chart
 - Escalation trigger counts
+- Weighted risk score distribution
 - Automation candidates + escalation risk tables
+- Policy tuning lab with estimated business cost metrics
+- Threshold sweep table for selecting escalation thresholds
 - Example handoff summaries for escalated interactions
 - Simulation panel showing queue-step decisions
 - Sidebar controls for routing thresholds
@@ -82,35 +113,17 @@ This project goes beyond dashboarding by modeling the **operational decision lay
 - Which interactions can stay AI-first?
 - Which require human validation?
 - Which should be fast-tracked as priority escalations?
+- Where does policy tuning reduce cost without increasing customer-risk exposure?
 
-It demonstrates practical thinking about reliability, safety, and customer experience in AI-assisted operations.
-
----
-
-## Future architecture (human-in-the-loop orchestration)
-
-A credible next step toward production:
-
-1. **Event ingestion**
-   - Stream events from CRM/chat/voice systems via Kafka, Kinesis, or Pub/Sub.
-2. **Real-time inference services**
-   - Intent, sentiment, and risk scoring as low-latency microservices.
-3. **Decision policy service**
-   - Externalized routing policies (versioned) with audit logs.
-4. **Human-in-the-loop workbench**
-   - Agent console showing AI rationale, signals, and editable handoff notes.
-5. **Feedback loop**
-   - Capture outcomes (resolved, re-escalated, CSAT impact) to calibrate policy thresholds.
-6. **Monitoring & governance**
-   - SLA dashboards, drift checks, fairness/safety alerts, and rollback-capable policy deploys.
-
-This path keeps the same core logic patterns introduced in this prototype while adding production-grade orchestration.
+It demonstrates practical thinking about reliability, safety, economics, and customer experience in AI-assisted operations.
 
 ---
 
 ## Manual review checklist
 
 - Verify routing thresholds produce expected action shifts.
+- Validate weighted-risk score behavior on known high-risk examples.
+- Compare threshold sweep options and choose a policy point aligned to your cost appetite.
 - Validate handoff summaries for clarity and usefulness to human agents.
 - Confirm call types/keywords reflect your business taxonomy.
 - Replace fallback/synthetic data with real interaction feeds when available.

@@ -11,6 +11,7 @@ from src.analytics import (
 from src.config import RoutingConfig
 from src.data_loader import load_best_dataset
 from src.insights import generate_insights
+from src.policy_optimizer import estimate_policy_cost, threshold_sweep
 from src.preprocessing import clean_dataframe, get_column_map
 from src.routing_engine import apply_routing, routing_distribution, trigger_summary
 from src.simulation import simulate_queue
@@ -66,10 +67,14 @@ if col_map["sentiment"]:
 st.sidebar.header("Routing Thresholds")
 low_conf = st.sidebar.slider("Low confidence threshold", min_value=0.10, max_value=0.95, value=0.45, step=0.05)
 frustration_threshold = st.sidebar.slider("Frustration keyword threshold", min_value=1, max_value=4, value=2, step=1)
+escalate_threshold = st.sidebar.slider("Escalate risk threshold", min_value=0.30, max_value=0.90, value=0.55, step=0.05)
+priority_threshold = st.sidebar.slider("Priority risk threshold", min_value=0.60, max_value=0.98, value=0.82, step=0.02)
 
 routing_cfg = RoutingConfig(
     low_confidence_threshold=low_conf,
     frustration_score_threshold=frustration_threshold,
+    escalate_risk_threshold=escalate_threshold,
+    priority_risk_threshold=priority_threshold,
 )
 
 routed_df = apply_routing(working_df, col_map, config=routing_cfg)
@@ -120,6 +125,14 @@ with col4:
     else:
         st.info("No routing trigger signals available.")
 
+
+st.subheader("Weighted Risk Score Distribution")
+if "signal_risk_score" in routed_df.columns:
+    fig = px.histogram(routed_df, x="signal_risk_score", nbins=20)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No risk score available.")
+
 st.header("🤖 AI Optimization Insights")
 auto_df = automation_candidates(working_df, col_map)
 esc_df = escalation_candidates(working_df, col_map)
@@ -141,6 +154,18 @@ with right:
     else:
         st.info("Insufficient columns to identify escalation risks.")
 
+st.header("⚖️ Policy Tuning Lab (Cost vs. Risk)")
+costs = estimate_policy_cost(routed_df, routing_cfg)
+pc1, pc2, pc3, pc4 = st.columns(4)
+pc1.metric("Estimated Total Cost", f"${costs['total_estimated_cost']:,.0f}")
+pc2.metric("Base Ops Cost", f"${costs['base_operation_cost']:,.0f}")
+pc3.metric("High-Risk Misses", f"{costs['high_risk_misses']}")
+pc4.metric("Priority Delays", f"{costs['priority_delays']}")
+
+sweep_df = threshold_sweep(working_df, col_map, routing_cfg)
+st.caption("Threshold sweep estimates the business tradeoff between AI efficiency and escalation risk.")
+st.dataframe(sweep_df, use_container_width=True)
+
 st.header("🧾 Escalation Handoff Summaries")
 handoff_examples = generate_handoff_examples(routed_df, col_map, limit=5)
 if handoff_examples.empty:
@@ -160,7 +185,7 @@ if not queue_action_summary.empty:
     st.plotly_chart(fig, use_container_width=True)
 
 st.header("🧠 Strategic Recommendations")
-insights = generate_insights(kpis, auto_df, esc_df)
+insights = generate_insights(kpis, auto_df, esc_df, policy_costs=costs)
 for insight in insights:
     st.markdown(f"- {insight}")
 
