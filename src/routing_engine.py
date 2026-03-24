@@ -29,6 +29,8 @@ class RoutingSignals:
 
 
 class RoutingEngine:
+    """Deterministic routing engine for explainable, auditable support decisions."""
+
     def __init__(self, config: RoutingConfig | None = None) -> None:
         self.config = config or RoutingConfig()
 
@@ -59,7 +61,7 @@ class RoutingEngine:
         }
         risk_score = max(0.0, min(1.0, sum(contributions.values())))
         top_reasons = [
-            name for name, _ in sorted(contributions.items(), key=lambda item: item[1], reverse=True) if _ > 0
+            name for name, value in sorted(contributions.items(), key=lambda item: item[1], reverse=True) if value > 0
         ][:3]
         return risk_score, top_reasons
 
@@ -109,34 +111,58 @@ class RoutingEngine:
             uncertain_case=uncertain_case,
         )
 
-    def route(self, signals: RoutingSignals) -> tuple[RoutingAction, str]:
+    def route(self, signals: RoutingSignals) -> tuple[RoutingAction, str, list[str], int]:
         signal_dict = asdict(signals)
         risk_score, top_reasons = self._compute_risk_score(signal_dict, signals.confidence_gap)
         explain = ", ".join(top_reasons) if top_reasons else "low observed risk signals"
 
-        if (
-            signals.priority_intent
-            or signals.escalation_hits >= 2
-            or risk_score >= self.config.priority_risk_threshold
-        ):
+        matched_rules: list[str] = []
+
+        if signals.priority_intent:
+            matched_rules.append("priority_intent_detected")
+        if signals.escalation_hits >= 2:
+            matched_rules.append("multiple_escalation_keywords")
+        if risk_score >= self.config.priority_risk_threshold:
+            matched_rules.append("priority_risk_threshold_crossed")
+
+        if matched_rules:
             return (
                 RoutingAction.PRIORITY_ESCALATE,
-                f"Risk score {risk_score:.2f} crossed priority threshold. Drivers: {explain}.",
+                f"Risk score {risk_score:.2f} crossed priority policy. Drivers: {explain}.",
+                matched_rules,
+                10,
             )
 
         if risk_score >= self.config.escalate_risk_threshold:
             return (
                 RoutingAction.HUMAN_ESCALATE,
                 f"Risk score {risk_score:.2f} indicates elevated resolution risk. Drivers: {explain}.",
+                ["escalate_risk_threshold_crossed"],
+                30,
             )
 
-        if signals.uncertain_case or signals.review_intent or signals.low_confidence:
+        review_rules: list[str] = []
+        if signals.uncertain_case:
+            review_rules.append("uncertainty_band")
+        if signals.review_intent:
+            review_rules.append("review_intent_detected")
+        if signals.low_confidence:
+            review_rules.append("low_confidence")
+
+        if review_rules:
             return (
                 RoutingAction.HUMAN_REVIEW,
-                f"Risk score {risk_score:.2f} is in a gray zone or confidence is limited. Drivers: {explain}.",
+                f"Risk score {risk_score:.2f} is in review zone or confidence is limited. Drivers: {explain}.",
+                review_rules,
+                45,
             )
 
-        return RoutingAction.AI_HANDLE, f"Risk score {risk_score:.2f} supports AI-first handling. Drivers: {explain}."
+        return (
+            RoutingAction.AI_HANDLE,
+            f"Risk score {risk_score:.2f} supports AI-first handling. Drivers: {explain}.",
+            ["ai_safe_band"],
+            120,
+        )
 
 
 def apply_routing(
@@ -157,11 +183,13 @@ def apply_routing(
             transcript_col=col_map.get("transcript"),
             confidence_col=confidence_col,
         )
-        action, reason = engine.route(signals)
+        action, reason, rules, target_minutes = engine.route(signals)
         routed_rows.append(
             {
                 "routing_action": action.value,
                 "routing_reason": reason,
+                "routing_rules": ", ".join(rules),
+                "target_resolution_minutes": target_minutes,
                 **{f"signal_{k}": v for k, v in asdict(signals).items()},
             }
         )
