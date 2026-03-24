@@ -1,199 +1,116 @@
-# 📞 AI-Ready Call Center Intelligence Dashboard
+# 📞 Call Center AI Analytics Dashboard → Decision Engine Prototype
 
-An end-to-end analytics system designed to analyze customer support interactions and inform the transition from human-based support to AI-assisted customer service systems.
+A portfolio-ready Python project that evolves a traditional support analytics dashboard into a **simulated decision system** for AI-assisted customer support routing.
 
----
+## What this project demonstrates
 
-## 🧠 Overview
-
-This project analyzes call center transcript data using data analytics and NLP techniques to uncover:
-
-- High-volume automation opportunities  
-- Sentiment-driven escalation risks  
-- Customer pain points across products and services  
-- Patterns that inform AI-powered support system design  
-
-The goal is not just to analyze data—but to translate it into **actionable decisions for modern customer service operations**.
+- Descriptive analytics on support interaction data (call type, sentiment, risk patterns)
+- Rules-based interaction routing for operational decisions
+- AI-to-human handoff summary generation for escalations
+- Queue simulation mode that mimics live decisioning record-by-record
+- Streamlit UI controls for tuning routing thresholds and reviewing impact
 
 ---
 
-## 🎯 Business Problem
+## Architecture (Current)
 
-Customer support teams face increasing pressure to:
-
-- Reduce operational costs  
-- Scale support efficiently  
-- Maintain high customer satisfaction  
-
-As AI systems begin replacing or augmenting human agents, organizations need to answer:
-
-- Which interactions should be automated?  
-- When should AI escalate to a human?  
-- How should AI respond to different customer emotions?  
-
-This project provides a **data-driven framework** to answer those questions.
-
----
-
-## 🚀 Features
-
-### 📊 Core Analytics
-- Call volume and distribution by type  
-- Sentiment analysis across interactions  
-- Complaint rate and negative sentiment tracking  
-- Product-level issue visibility  
-
-### 🤖 AI Optimization Insights
-- Identification of high-volume, low-risk automation candidates  
-- Detection of escalation-prone interaction types  
-- Sentiment-based routing logic for AI systems  
-
-### 🧠 Strategic Recommendations
-- AI vs human routing suggestions  
-- Escalation trigger identification  
-- Customer experience improvement opportunities  
-
-### 📄 Interactive Dashboard
-- Built with Streamlit for real-time exploration  
-- Filterable by call type and sentiment  
-- Visualized using Plotly  
-
----
-
-## 🏗️ System Architecture
-Data Layer
+```text
+app.py (Streamlit UI)
 │
-├── Raw + Enriched Call Transcripts
-│
-Analytics Layer
-│
-├── KPI Calculation
-├── Sentiment Aggregation
-├── Call Type Analysis
-│
-AI Insight Layer
-│
-├── Automation Candidate Scoring
-├── Escalation Risk Detection
-│
-Presentation Layer
-│
-└── Streamlit Dashboard (Plotly Visuals)
-
+├── src/data_loader.py        # dataset selection + fallback synthetic demo data
+├── src/preprocessing.py      # schema normalization + column detection
+├── src/analytics.py          # KPI and descriptive analytics
+├── src/routing_engine.py     # rules engine + trigger extraction
+├── src/summarizer.py         # escalation handoff summary generation
+├── src/simulation.py         # simulated live queue processing
+├── src/insights.py           # strategic recommendation text
+└── src/config.py             # paths + routing thresholds/keywords
+```
 
 ---
 
-## 🧪 Dataset
+## Routing actions
 
-This project uses a combination of:
+Each interaction is classified into one of:
 
-- Simulated customer support transcripts  
-- NLP-enriched data (sentiment, entities, call types)  
-- Synthetic scaling to generate realistic call volumes (~3,000 records)  
+- `AI_HANDLE`
+- `HUMAN_ESCALATE`
+- `HUMAN_REVIEW`
+- `PRIORITY_ESCALATE`
 
-### Why synthetic data?
+Routing uses combinations of:
 
-The original dataset contained limited records (~20 calls), which is insufficient for identifying meaningful patterns.
-
-To address this, a synthetic dataset was generated that:
-- Preserves the structure of real call interactions  
-- Maintains realistic distributions of call types and sentiment  
-- Enables scalable analysis and visualization  
-
----
-
-## 🧰 Tech Stack
-
-- **Python**
-- **Pandas**
-- **Plotly**
-- **Streamlit**
-- **Scikit-learn (basic NLP concepts)**
+- sentiment label
+- call type / intent
+- frustration & escalation language in transcript text
+- optional confidence score (if available)
 
 ---
 
-## 📸 Dashboard Preview
+## Dashboard capabilities
 
-> *(Add screenshots here after deployment)*
-
-Examples:
-- KPI Overview Panel  
-- Call Type Distribution  
-- Sentiment Breakdown  
-- AI Optimization Insights  
-
----
-
-## 📈 Example Insights
-
-- Complaint calls generate the highest volume of negative sentiment and should remain human-routed  
-- Product inquiries represent strong candidates for AI-first handling  
-- Sentiment patterns can be used to trigger real-time escalation logic  
-- Certain products drive disproportionate customer dissatisfaction  
+- KPI cards (volume, complaint rate, negative rate)
+- Call type + sentiment distribution charts
+- Routing decision distribution chart
+- Escalation trigger counts
+- Automation candidates + escalation risk tables
+- Example handoff summaries for escalated interactions
+- Simulation panel showing queue-step decisions
+- Sidebar controls for routing thresholds
 
 ---
 
-## 🤖 AI System Design Implications
-
-This project demonstrates how data can guide AI-driven support systems:
-
-### Automate:
-- High-volume, low-emotion interactions  
-- Repetitive requests (e.g., product inquiries)
-
-### Escalate:
-- High-frustration or complaint-driven interactions  
-- Complex or multi-step problem resolution  
-
-### Optimize:
-- AI tone and response strategy based on sentiment  
-- Routing logic using historical interaction patterns  
-
----
-
-## ⚠️ Limitations
-
-- Synthetic data is used for scalability and demonstration  
-- Product identifiers are numeric and not semantically grouped  
-- Results represent **analytical patterns**, not production-validated outcomes  
-
----
-
-## 🔮 Next Steps
-
-- Add real-world datasets or API integrations  
-- Improve NLP pipeline (topic modeling, embeddings, LLM-based classification)  
-- Implement call type prediction model  
-- Add real-time streaming data support  
-- Deploy dashboard to cloud environment (AWS / GCP / VPS)  
-- Integrate AI agent simulation for automated response testing  
-
----
-
-## 🧠 About Me
-
-I come from an operations and leadership background where I managed performance, efficiency, and customer experience in high-volume environments.
-
-I now focus on using data and AI to:
-- Improve operational decision-making  
-- Design scalable systems  
-- Bridge the gap between real-world operations and intelligent automation  
-
----
-
-## 📫 Contact
-
-- Email: sensei@cowabungacloud.com  
-- Website: https://cowabungacloud.com  
-- LinkedIn: *(add your link)*  
-
----
-
-## 🚀 Run Locally
+## Run locally
 
 ```bash
 git clone https://github.com/your-username/call-center-ai-analytics-dashboard.git
 cd call-center-ai-analytics-dashboard
-
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m streamlit run app.py
+streamlit run app.py
+```
+
+If no CSV files are present in `data/`, the app automatically generates a realistic fallback demo dataset so reviewers can still run it end-to-end.
+
+---
+
+## Why this is portfolio-relevant
+
+This project goes beyond dashboarding by modeling the **operational decision layer** needed for AI support systems:
+
+- Which interactions can stay AI-first?
+- Which require human validation?
+- Which should be fast-tracked as priority escalations?
+
+It demonstrates practical thinking about reliability, safety, and customer experience in AI-assisted operations.
+
+---
+
+## Future architecture (human-in-the-loop orchestration)
+
+A credible next step toward production:
+
+1. **Event ingestion**
+   - Stream events from CRM/chat/voice systems via Kafka, Kinesis, or Pub/Sub.
+2. **Real-time inference services**
+   - Intent, sentiment, and risk scoring as low-latency microservices.
+3. **Decision policy service**
+   - Externalized routing policies (versioned) with audit logs.
+4. **Human-in-the-loop workbench**
+   - Agent console showing AI rationale, signals, and editable handoff notes.
+5. **Feedback loop**
+   - Capture outcomes (resolved, re-escalated, CSAT impact) to calibrate policy thresholds.
+6. **Monitoring & governance**
+   - SLA dashboards, drift checks, fairness/safety alerts, and rollback-capable policy deploys.
+
+This path keeps the same core logic patterns introduced in this prototype while adding production-grade orchestration.
+
+---
+
+## Manual review checklist
+
+- Verify routing thresholds produce expected action shifts.
+- Validate handoff summaries for clarity and usefulness to human agents.
+- Confirm call types/keywords reflect your business taxonomy.
+- Replace fallback/synthetic data with real interaction feeds when available.
